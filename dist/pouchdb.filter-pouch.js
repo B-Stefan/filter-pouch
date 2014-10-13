@@ -16,7 +16,7 @@ exports.filter = function (config) {
       return doc;
     }
     if (config.incoming) {
-      return config.incoming(utils.clone(doc));
+      return config.incoming(doc);
     }
     return doc;
   };
@@ -25,7 +25,7 @@ exports.filter = function (config) {
       return doc;
     }
     if (config.outgoing) {
-      return config.outgoing(utils.clone(doc));
+      return config.outgoing(doc);
     }
     return doc;
   };
@@ -205,7 +205,7 @@ if (typeof window !== 'undefined' && window.PouchDB) {
   window.PouchDB.plugin(exports);
 }
 
-},{"./pouch-utils":23}],2:[function(require,module,exports){
+},{"./pouch-utils":24}],2:[function(require,module,exports){
 
 },{}],3:[function(require,module,exports){
 // shim for using process in browser
@@ -300,10 +300,10 @@ var reject = require('./reject');
 var resolve = require('./resolve');
 var INTERNAL = require('./INTERNAL');
 var handlers = require('./handlers');
-var noArray = reject(new TypeError('must be an array'));
-module.exports = function all(iterable) {
+module.exports = all;
+function all(iterable) {
   if (Object.prototype.toString.call(iterable) !== '[object Array]') {
-    return noArray;
+    return reject(new TypeError('must be an array'));
   }
 
   var len = iterable.length;
@@ -336,8 +336,8 @@ module.exports = function all(iterable) {
       }
     }
   }
-};
-},{"./INTERNAL":5,"./handlers":7,"./promise":9,"./reject":11,"./resolve":12}],7:[function(require,module,exports){
+}
+},{"./INTERNAL":5,"./handlers":7,"./promise":9,"./reject":12,"./resolve":13}],7:[function(require,module,exports){
 'use strict';
 var tryCatch = require('./tryCatch');
 var resolveThenable = require('./resolveThenable');
@@ -383,13 +383,14 @@ function getThen(obj) {
     };
   }
 }
-},{"./resolveThenable":13,"./states":14,"./tryCatch":15}],8:[function(require,module,exports){
+},{"./resolveThenable":14,"./states":15,"./tryCatch":16}],8:[function(require,module,exports){
 module.exports = exports = require('./promise');
 
 exports.resolve = require('./resolve');
 exports.reject = require('./reject');
 exports.all = require('./all');
-},{"./all":6,"./promise":9,"./reject":11,"./resolve":12}],9:[function(require,module,exports){
+exports.race = require('./race');
+},{"./all":6,"./promise":9,"./race":11,"./reject":12,"./resolve":13}],9:[function(require,module,exports){
 'use strict';
 
 var unwrap = require('./unwrap');
@@ -435,7 +436,7 @@ Promise.prototype.then = function (onFulfilled, onRejected) {
   return promise;
 };
 
-},{"./INTERNAL":5,"./queueItem":10,"./resolveThenable":13,"./states":14,"./unwrap":16}],10:[function(require,module,exports){
+},{"./INTERNAL":5,"./queueItem":10,"./resolveThenable":14,"./states":15,"./unwrap":17}],10:[function(require,module,exports){
 'use strict';
 var handlers = require('./handlers');
 var unwrap = require('./unwrap');
@@ -464,7 +465,48 @@ QueueItem.prototype.callRejected = function (value) {
 QueueItem.prototype.otherCallRejected = function (value) {
   unwrap(this.promise, this.onRejected, value);
 };
-},{"./handlers":7,"./unwrap":16}],11:[function(require,module,exports){
+},{"./handlers":7,"./unwrap":17}],11:[function(require,module,exports){
+'use strict';
+var Promise = require('./promise');
+var reject = require('./reject');
+var resolve = require('./resolve');
+var INTERNAL = require('./INTERNAL');
+var handlers = require('./handlers');
+module.exports = race;
+function race(iterable) {
+  if (Object.prototype.toString.call(iterable) !== '[object Array]') {
+    return reject(new TypeError('must be an array'));
+  }
+
+  var len = iterable.length;
+  var called = false;
+  if (!len) {
+    return resolve([]);
+  }
+
+  var resolved = 0;
+  var i = -1;
+  var promise = new Promise(INTERNAL);
+  
+  while (++i < len) {
+    resolver(iterable[i]);
+  }
+  return promise;
+  function resolver(value) {
+    resolve(value).then(function (response) {
+      if (!called) {
+        called = true;
+        handlers.resolve(promise, response);
+      }
+    }, function (error) {
+      if (!called) {
+        called = true;
+        handlers.reject(promise, error);
+      }
+    });
+  }
+}
+},{"./INTERNAL":5,"./handlers":7,"./promise":9,"./reject":12,"./resolve":13}],12:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./promise');
@@ -476,7 +518,7 @@ function reject(reason) {
 	var promise = new Promise(INTERNAL);
 	return handlers.reject(promise, reason);
 }
-},{"./INTERNAL":5,"./handlers":7,"./promise":9}],12:[function(require,module,exports){
+},{"./INTERNAL":5,"./handlers":7,"./promise":9}],13:[function(require,module,exports){
 'use strict';
 
 var Promise = require('./promise');
@@ -511,7 +553,7 @@ function resolve(value) {
       return EMPTYSTRING;
   }
 }
-},{"./INTERNAL":5,"./handlers":7,"./promise":9}],13:[function(require,module,exports){
+},{"./INTERNAL":5,"./handlers":7,"./promise":9}],14:[function(require,module,exports){
 'use strict';
 var handlers = require('./handlers');
 var tryCatch = require('./tryCatch');
@@ -544,13 +586,13 @@ function safelyResolveThenable(self, thenable) {
   }
 }
 exports.safely = safelyResolveThenable;
-},{"./handlers":7,"./tryCatch":15}],14:[function(require,module,exports){
+},{"./handlers":7,"./tryCatch":16}],15:[function(require,module,exports){
 // Lazy man's symbols for states
 
 exports.REJECTED = ['REJECTED'];
 exports.FULFILLED = ['FULFILLED'];
 exports.PENDING = ['PENDING'];
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 module.exports = tryCatch;
@@ -566,7 +608,7 @@ function tryCatch(func, value) {
   }
   return out;
 }
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 'use strict';
 
 var immediate = require('immediate');
@@ -588,7 +630,7 @@ function unwrap(promise, func, value) {
     }
   });
 }
-},{"./handlers":7,"immediate":17}],17:[function(require,module,exports){
+},{"./handlers":7,"immediate":18}],18:[function(require,module,exports){
 'use strict';
 var types = [
   require('./nextTick'),
@@ -599,7 +641,8 @@ var types = [
 ];
 var draining;
 var queue = [];
-function drainQueue() {
+//named nextTick for less confusing stack traces
+function nextTick() {
   draining = true;
   var i, oldQueue;
   var len = queue.length;
@@ -619,7 +662,7 @@ var i = -1;
 var len = types.length;
 while (++ i < len) {
   if (types[i] && types[i].test && types[i].test()) {
-    scheduleDrain = types[i].install(drainQueue);
+    scheduleDrain = types[i].install(nextTick);
     break;
   }
 }
@@ -629,7 +672,7 @@ function immediate(task) {
     scheduleDrain();
   }
 }
-},{"./messageChannel":18,"./mutation.js":19,"./nextTick":2,"./stateChange":20,"./timeout":21}],18:[function(require,module,exports){
+},{"./messageChannel":19,"./mutation.js":20,"./nextTick":2,"./stateChange":21,"./timeout":22}],19:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 
 exports.test = function () {
@@ -648,7 +691,7 @@ exports.install = function (func) {
     channel.port2.postMessage(0);
   };
 };
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 //based off rsvp https://github.com/tildeio/rsvp.js
 //license https://github.com/tildeio/rsvp.js/blob/master/LICENSE
@@ -671,7 +714,7 @@ exports.install = function (handle) {
     element.data = (called = ++called % 2);
   };
 };
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 var global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 
 exports.test = function () {
@@ -696,7 +739,7 @@ exports.install = function (handle) {
     return handle;
   };
 };
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 'use strict';
 exports.test = function () {
   return true;
@@ -707,7 +750,7 @@ exports.install = function (t) {
     setTimeout(t, 0);
   };
 };
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 "use strict";
 
 // Extends method
@@ -779,16 +822,38 @@ var isArray = Array.isArray || function (obj) {
 };
 
 function extend() {
+  // originally extend() was recursive, but this ended up giving us
+  // "call stack exceeded", so it's been unrolled to use a literal stack
+  // (see https://github.com/pouchdb/pouchdb/issues/2543)
+  var stack = [];
+  var i = -1;
+  var len = arguments.length;
+  var args = new Array(len);
+  while (++i < len) {
+    args[i] = arguments[i];
+  }
+  var container = {};
+  stack.push({args: args, result: {container: container, key: 'key'}});
+  var next;
+  while ((next = stack.pop())) {
+    extendInner(stack, next.args, next.result);
+  }
+  return container.key;
+}
+
+function extendInner(stack, args, result) {
   var options, name, src, copy, copyIsArray, clone,
-    target = arguments[0] || {},
+    target = args[0] || {},
     i = 1,
-    length = arguments.length,
-    deep = false;
+    length = args.length,
+    deep = false,
+    numericStringRegex = /\d+/,
+    optionsIsArray;
 
   // Handle a deep copy situation
   if (typeof target === "boolean") {
     deep = target;
-    target = arguments[1] || {};
+    target = args[1] || {};
     // skip the boolean and the target
     i = 2;
   }
@@ -807,11 +872,15 @@ function extend() {
 
   for (; i < length; i++) {
     // Only deal with non-null/undefined values
-    if ((options = arguments[i]) != null) {
+    if ((options = args[i]) != null) {
+      optionsIsArray = isArray(options);
       // Extend the base object
       for (name in options) {
         //if (options.hasOwnProperty(name)) {
         if (!(name in Object.prototype)) {
+          if (optionsIsArray && !numericStringRegex.test(name)) {
+            continue;
+          }
 
           src = target[name];
           copy = options[name];
@@ -833,7 +902,13 @@ function extend() {
             }
 
             // Never move original objects, clone them
-            target[name] = extend(deep, clone, copy);
+            stack.push({
+              args: [deep, clone, copy],
+              result: {
+                container: target,
+                key: name
+              }
+            });
 
           // Don't bring in undefined values
           } else if (copy !== undefined) {
@@ -846,8 +921,9 @@ function extend() {
     }
   }
 
-  // Return the modified object
-  return target;
+  // "Return" the modified object by setting the key
+  // on the given container
+  result.container[result.key] = target;
 }
 
 
@@ -855,12 +931,12 @@ module.exports = extend;
 
 
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var process=require("__browserify_process"),global=typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {};'use strict';
 
 var Promise;
 /* istanbul ignore next */
-if (typeof window !== 'undefined' && window.PouchDB) {
+if (typeof window !== 'undefined' && window.PouchDB && window.PouchDB.utils.Promise) {
   Promise = window.PouchDB.utils.Promise;
 } else {
   Promise = typeof global.Promise === 'function' ? global.Promise : require('lie');
@@ -947,5 +1023,5 @@ exports.clone = function (obj) {
 exports.isLocalId = function (id) {
   return (/^_local/).test(id);
 };
-},{"__browserify_process":3,"inherits":4,"lie":8,"pouchdb-extend":22}]},{},[1])
+},{"__browserify_process":3,"inherits":4,"lie":8,"pouchdb-extend":23}]},{},[1])
 ;
