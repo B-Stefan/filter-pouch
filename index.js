@@ -15,7 +15,7 @@ exports.filter = function (config) {
       return doc;
     }
     if (config.incoming) {
-      return config.incoming(utils.clone(doc));
+      return config.incoming(doc);
     }
     return doc;
   };
@@ -24,7 +24,7 @@ exports.filter = function (config) {
       return doc;
     }
     if (config.outgoing) {
-      return config.outgoing(utils.clone(doc));
+      return config.outgoing(doc);
     }
     return doc;
   };
